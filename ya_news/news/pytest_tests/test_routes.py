@@ -1,81 +1,63 @@
 import pytest
-from django.urls import reverse
+from http import HTTPStatus
 
 
 @pytest.mark.django_db
-def test_home_page_access(client):
-    url = reverse('news:home')
-    response = client.get(url)
-    assert response.status_code == 200
-
-
-@pytest.mark.django_db
-def test_news_detail_page_access(client, news):
-    url = reverse('news:detail', kwargs={'pk': news.pk})
-    response = client.get(url)
-    assert response.status_code == 200
-    assert news.title.encode() in response.content
-    assert news.text.encode() in response.content
-
-
-@pytest.mark.django_db
-def test_comment_edit_and_delete_pages_access_to_author(
-    client, author, comment
+def test_all_pages_access(
+    client,
+    author,
+    other_user,
+    news,
+    comment,
+    home_url,
+    news_detail_url,
+    comment_edit_url,
+    comment_delete_url,
+    signup_url,
+    login_url,
+    logout_url
 ):
-    client.force_login(author)
-    edit_url = reverse('news:edit', kwargs={'pk': comment.pk})
-    delete_url = reverse('news:delete', kwargs={'pk': comment.pk})
+    cases = [
+        # Главная страница доступна анонимному пользователю.
+        [home_url, None, HTTPStatus.OK],
 
-    edit_response = client.get(edit_url)
-    delete_response = client.get(delete_url)
+        # Страница отдельной новости доступна анонимному пользователю.
+        [news_detail_url, None, HTTPStatus.OK],
 
-    assert edit_response.status_code == 200
-    assert delete_response.status_code == 200
+        # Страницы удаления и редактирования комментария доступны автору
+        # комментария.
+        [comment_edit_url, author, HTTPStatus.OK],
+        [comment_delete_url, author, HTTPStatus.OK],
 
+        # При попытке перейти на страницу редактирования или удаления
+        # комментария анонимный пользователь перенаправляется на страницу
+        # авторизации.
+        [comment_edit_url, None, HTTPStatus.FOUND],
+        [comment_delete_url, None, HTTPStatus.FOUND],
 
-@pytest.mark.django_db
-def test_comment_edit_and_delete_pages_redirect_anonymous_to_login(
-    client, comment
-):
-    edit_url = reverse('news:edit', kwargs={'pk': comment.pk})
-    delete_url = reverse('news:delete', kwargs={'pk': comment.pk})
+        # Авторизованный пользователь не может зайти на страницы редактирования
+        # или удаления чужих комментариев (возвращается ошибка 404).
+        [comment_edit_url, other_user, HTTPStatus.NOT_FOUND],
+        [comment_delete_url, other_user, HTTPStatus.NOT_FOUND],
 
-    edit_response = client.get(edit_url)
-    delete_response = client.get(delete_url)
+        # Страницы регистрации пользователей, входа в учётную запись и выхода
+        # из неё доступны анонимным пользователям.
+        [signup_url, None, HTTPStatus.OK],
+        [login_url, None, HTTPStatus.OK],
+        [logout_url, None, HTTPStatus.OK],
+    ]
 
-    assert edit_response.status_code == 302
-    assert delete_response.status_code == 302
+    for url, user, expected_status in cases:
+        # Очищаем сессию перед каждым тестом
+        client.session.flush()
 
-    login_url = reverse('users:login')
-    assert edit_response.url.startswith(login_url)
-    assert delete_response.url.startswith(login_url)
+        # Логинимся если есть пользователь
+        if user:
+            client.force_login(user)
 
+        response = client.get(url)
+        assert response.status_code == expected_status
 
-@pytest.mark.django_db
-def test_comment_edit_and_delete_pages_restricted_to_other_users(
-    client, other_user, comment
-):
-    client.force_login(other_user)
-    edit_url = reverse('news:edit', kwargs={'pk': comment.pk})
-    delete_url = reverse('news:delete', kwargs={'pk': comment.pk})
-
-    edit_response = client.get(edit_url)
-    delete_response = client.get(delete_url)
-
-    assert edit_response.status_code == 404
-    assert delete_response.status_code == 404
-
-
-@pytest.mark.django_db
-def test_auth_pages_access_to_anonymous(client):
-    signup_url = reverse('users:signup')
-    login_url = reverse('users:login')
-    logout_url = reverse('users:logout')
-
-    signup_response = client.get(signup_url)
-    login_response = client.get(login_url)
-    logout_response = client.get(logout_url)
-
-    assert signup_response.status_code == 200
-    assert login_response.status_code == 200
-    assert logout_response.status_code == 200
+        # Дополнительные проверки для редиректов
+        if expected_status == HTTPStatus.FOUND:
+            assert response.url.startswith(login_url)

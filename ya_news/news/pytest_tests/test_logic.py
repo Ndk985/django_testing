@@ -1,6 +1,8 @@
 import pytest
 from django.urls import reverse
 from news.models import Comment
+from http import HTTPStatus
+from news.forms import BAD_WORDS, WARNING
 
 
 @pytest.mark.django_db
@@ -10,7 +12,7 @@ def test_anonymous_user_cannot_post_comment(client, detail_url):
     }
     response = client.post(detail_url, data=comment_data)
 
-    assert response.status_code == 302, (
+    assert response.status_code == HTTPStatus.FOUND, (
         'Анонимный пользователь должен быть перенаправлен'
         ' на страницу авторизации.'
     )
@@ -29,7 +31,7 @@ def test_authenticated_user_can_post_comment(
     }
     response = authenticated_client.post(detail_url, data=comment_data)
 
-    assert response.status_code == 302, (
+    assert response.status_code == HTTPStatus.FOUND, (
         'После успешной отправки комментария пользователь'
         ' должен быть перенаправлен.'
     )
@@ -50,11 +52,14 @@ def test_authenticated_user_can_post_comment(
 
 
 @pytest.mark.django_db
-def test_comment_with_bad_words_is_rejected(authenticated_client, detail_url):
-    comment_data = {'text': 'Это комментарий с запрещённым словом редиска.'}
+@pytest.mark.parametrize('bad_word', BAD_WORDS)
+def test_comment_with_bad_words_is_rejected(
+    authenticated_client, detail_url, bad_word
+):
+    comment_data = {'text': f'Комментарий с запрещённым словом {bad_word}.'}
     response = authenticated_client.post(detail_url, data=comment_data)
 
-    assert response.status_code == 200, (
+    assert response.status_code == HTTPStatus.OK, (
         'Форма должна вернуть ошибку, а не перенаправлять пользователя.'
     )
     assert Comment.objects.count() == 0, (
@@ -67,7 +72,7 @@ def test_comment_with_bad_words_is_rejected(authenticated_client, detail_url):
         'Форма должна содержать ошибку в поле "text".'
     )
     assert 'Не ругайтесь!' in response.context['form'].errors['text'], (
-        'Форма должна вернуть ошибку "Не ругайтесь!".'
+        f'Форма должна вернуть ошибку "{WARNING}".'
     )
 
 
@@ -78,7 +83,7 @@ def test_authenticated_user_can_edit_own_comment(
     updated_comment_data = {'text': 'Это обновлённый комментарий.'}
     response = authenticated_client.post(edit_url, data=updated_comment_data)
 
-    assert response.status_code == 302, (
+    assert response.status_code == HTTPStatus.FOUND, (
         'После успешного редактирования комментария пользователь'
         ' должен быть перенаправлен.'
     )
@@ -98,7 +103,7 @@ def test_authenticated_user_can_delete_own_comment(
 ):
     response = authenticated_client.post(delete_url)
 
-    assert response.status_code == 302, (
+    assert response.status_code == HTTPStatus.FOUND, (
         'После успешного удаления комментария пользователь'
         ' должен быть перенаправлен.'
     )
@@ -121,7 +126,7 @@ def test_authenticated_user_cannot_edit_other_users_comment(
     }
     response = client.post(edit_url, data=updated_comment_data)
 
-    assert response.status_code == 404, (
+    assert response.status_code == HTTPStatus.NOT_FOUND, (
         'Пользователь не должен иметь доступ'
         ' к редактированию чужих комментариев.'
     )
@@ -134,6 +139,6 @@ def test_authenticated_user_cannot_delete_other_users_comment(
     client.force_login(other_user)
     response = client.post(delete_url)
 
-    assert response.status_code == 404, (
+    assert response.status_code == HTTPStatus.NOT_FOUND, (
         'Пользователь не должен иметь доступ к удалению чужих комментариев.'
     )

@@ -56,16 +56,16 @@ def multiple_news():
 def multiple_comments(author, news):
     """Фикстура для создания нескольких комментариев."""
     now = datetime.now()
-    return Comment.objects.bulk_create(
+    comments = [
         Comment(
             news=news,
             author=author,
             text=f'Комментарий {index}',
-            # Комментарии от сегодня до 4 дней назад
             created=now - timedelta(days=index)
         )
         for index in range(5)
-    )
+    ]
+    return Comment.objects.bulk_create(comments)
 
 
 @pytest.fixture
@@ -91,3 +91,45 @@ def authenticated_client(client, author):
     """Фикстура для авторизованного клиента."""
     client.force_login(author)
     return client
+
+
+@pytest.fixture
+def home_url():
+    """Фикстура для URL главной страницы."""
+    return reverse('news:home')
+
+
+@pytest.fixture
+def news_detail_url(news):
+    """Фикстура для URL страницы новости."""
+    return reverse('news:detail', kwargs={'pk': news.pk})
+
+
+@pytest.fixture
+def comment_edit_url(comment):
+    """Фикстура для URL страницы редактирования комментария."""
+    return reverse('news:edit', kwargs={'pk': comment.pk})
+
+
+@pytest.fixture
+def comment_delete_url(comment):
+    """Фикстура для URL страницы удаления комментария."""
+    return reverse('news:delete', kwargs={'pk': comment.pk})
+
+
+@pytest.fixture
+def login_url():
+    """Фикстура для URL страницы входа."""
+    return reverse('users:login')
+
+
+@pytest.fixture
+def logout_url():
+    """Фикстура для URL страницы выхода."""
+    return reverse('users:logout')
+
+
+@pytest.fixture
+def signup_url():
+    """Фикстура для URL страницы регистрации."""
+    return reverse('users:signup')

@@ -1,12 +1,10 @@
 import pytest
 from django.conf import settings
-from django.urls import reverse
 
 
 @pytest.mark.django_db
-def test_news_count_on_home_page(client, multiple_news):
-    url = reverse('news:home')
-    response = client.get(url)
+def test_news_count_on_home_page(client, multiple_news, home_url):
+    response = client.get(home_url)
     object_list = response.context['object_list']
     assert len(object_list) == settings.NEWS_COUNT_ON_HOME_PAGE, (
         f'На главной странице должно быть не более \
@@ -15,9 +13,8 @@ def test_news_count_on_home_page(client, multiple_news):
 
 
 @pytest.mark.django_db
-def test_news_order_on_home_page(client, multiple_news):
-    url = reverse('news:home')
-    response = client.get(url)
+def test_news_order_on_home_page(client, multiple_news, home_url):
+    response = client.get(home_url)
     object_list = response.context['object_list']
     dates = [news.date for news in object_list]
     assert dates == sorted(dates, reverse=True), (
@@ -27,9 +24,10 @@ def test_news_order_on_home_page(client, multiple_news):
 
 
 @pytest.mark.django_db
-def test_comments_order_on_news_detail_page(client, news, multiple_comments):
-    url = reverse('news:detail', kwargs={'pk': news.pk})
-    response = client.get(url)
+def test_comments_order_on_news_detail_page(
+    client, news, multiple_comments, news_detail_url
+):
+    response = client.get(news_detail_url)
     comments = response.context['news'].comment_set.all()
     created_times = [comment.created for comment in comments]
     assert created_times == sorted(created_times), (
@@ -39,9 +37,10 @@ def test_comments_order_on_news_detail_page(client, news, multiple_comments):
 
 
 @pytest.mark.django_db
-def test_comment_form_availability_to_anonymous_user(client, news):
-    url = reverse('news:detail', kwargs={'pk': news.pk})
-    response = client.get(url)
+def test_comment_form_availability_to_anonymous_user(
+    client, news, news_detail_url
+):
+    response = client.get(news_detail_url)
     assert 'form' not in response.context, (
         'Анонимному пользователю не должна быть доступна форма'
         ' для отправки комментария.'
@@ -49,10 +48,11 @@ def test_comment_form_availability_to_anonymous_user(client, news):
 
 
 @pytest.mark.django_db
-def test_comment_form_availability_to_authenticated_user(client, news, author):
+def test_comment_form_availability_to_authenticated_user(
+    client, news, author, news_detail_url
+):
     client.force_login(author)
-    url = reverse('news:detail', kwargs={'pk': news.pk})
-    response = client.get(url)
+    response = client.get(news_detail_url)
     assert 'form' in response.context, (
         'Авторизованному пользователю должна быть доступна форма'
         ' для отправки комментария.'

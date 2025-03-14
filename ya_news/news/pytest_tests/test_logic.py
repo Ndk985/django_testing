@@ -91,6 +91,16 @@ def test_authenticated_user_can_edit_own_comment(
     assert updated_comment.text == updated_comment_data['text'], (
         'Текст комментария должен быть обновлён.'
     )
+    assert updated_comment.news == comment.news, (
+        'Новость, к которой относится комментарий, не должна изменяться.'
+    )
+    assert updated_comment.author == comment.author, (
+        'Автор комментария не должен изменяться.'
+    )
+    assert updated_comment.created == comment.created, (
+        'Дата создания комментария не должна изменяться.'
+    )
+
     assert response.url == reverse(
         'news:detail', kwargs={'pk': news.pk}) + '#comments', (
         'Перенаправление должно вести на страницу новости с якорем #comments.'
@@ -107,6 +117,12 @@ def test_authenticated_user_can_delete_own_comment(
         'После успешного удаления комментария пользователь'
         ' должен быть перенаправлен.'
     )
+    # Проверка, что комментарий удалён из базы данных
+    with pytest.raises(Comment.DoesNotExist):
+        Comment.objects.get(pk=comment.pk)
+    assert Comment.objects.count() == 0, (
+        'Комментарий должен быть удалён из базы данных.'
+    )
     assert not Comment.objects.filter(pk=comment.pk).exists(), (
         'Комментарий должен быть удалён из базы данных.'
     )
@@ -118,7 +134,7 @@ def test_authenticated_user_can_delete_own_comment(
 
 @pytest.mark.django_db
 def test_authenticated_user_cannot_edit_other_users_comment(
-    client, other_user, edit_url
+    client, other_user, edit_url, comment
 ):
     client.force_login(other_user)
     updated_comment_data = {
@@ -130,15 +146,33 @@ def test_authenticated_user_cannot_edit_other_users_comment(
         'Пользователь не должен иметь доступ'
         ' к редактированию чужих комментариев.'
     )
+    updated_comment = Comment.objects.get(pk=comment.pk)
+    # Проверка, что данные комментария не изменились
+    assert updated_comment.text == comment.text, (
+        'Текст комментария не должен изменяться.'
+    )
+    assert updated_comment.news == comment.news, (
+        'Новость, к которой относится комментарий, не должна изменяться.'
+    )
+    assert updated_comment.author == comment.author, (
+        'Автор комментария не должен изменяться.'
+    )
+    assert updated_comment.created == comment.created, (
+        'Дата создания комментария не должна изменяться.'
+    )
 
 
 @pytest.mark.django_db
 def test_authenticated_user_cannot_delete_other_users_comment(
-    client, other_user, delete_url
+    client, other_user, delete_url, comment
 ):
     client.force_login(other_user)
     response = client.post(delete_url)
 
     assert response.status_code == HTTPStatus.NOT_FOUND, (
         'Пользователь не должен иметь доступ к удалению чужих комментариев.'
+    )
+    # Проверка, что комментарий всё ещё существует в базе данных
+    assert Comment.objects.filter(pk=comment.pk).exists(), (
+        'Комментарий должен остаться в базе данных после попытки удаления.'
     )

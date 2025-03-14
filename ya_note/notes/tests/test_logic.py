@@ -60,15 +60,36 @@ class LogicTests(BaseTest):
     def test_owner_can_edit_note(self):
         response = self.author_client.get(self.EDIT_URL)
         self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertIn('form', response.context)
+        form = response.context['form']
+        note = Note.objects.get(pk=self.note.pk)
+        # Проверяем, значения всех полей в форме соответствуют данным из базы
+        self.assertEqual(form.initial['title'], note.title)
+        self.assertEqual(form.initial['text'], note.text)
+        self.assertEqual(form.initial['slug'], note.slug)
 
     def test_other_user_cannot_edit_note(self):
         response = self.other_client.get(self.EDIT_URL)
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+        updated_note = Note.objects.get(pk=self.note.pk)
+        self.assertEqual(updated_note.title, self.note.title)
+        self.assertEqual(updated_note.text, self.note.text)
+        self.assertEqual(updated_note.slug, self.note.slug)
+        self.assertEqual(updated_note.author, self.note.author)
 
     def test_owner_can_delete_note(self):
+        self.assertTrue(Note.objects.filter(pk=self.note.pk).exists())
         response = self.author_client.get(self.DELETE_URL)
         self.assertEqual(response.status_code, HTTPStatus.OK)
+        delete_response = self.author_client.post(self.DELETE_URL)
+        self.assertEqual(delete_response.status_code, HTTPStatus.FOUND)
+        # Проверяем, что заметка удалена из базы данных
+        self.assertFalse(Note.objects.filter(pk=self.note.pk).exists())
+        self.assertEqual(delete_response.url, self.SUCCESS_URL)
 
     def test_other_user_cannot_delete_note(self):
+        self.assertTrue(Note.objects.filter(pk=self.note.pk).exists())
         response = self.other_client.get(self.DELETE_URL)
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+        # Проверяем, что заметка всё ещё существует в базе данных
+        self.assertTrue(Note.objects.filter(pk=self.note.pk).exists())

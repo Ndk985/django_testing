@@ -6,7 +6,7 @@ from django.conf import settings
 def test_news_count_on_home_page(client, multiple_news, home_url):
     response = client.get(home_url)
     object_list = response.context['object_list']
-    assert len(object_list) == settings.NEWS_COUNT_ON_HOME_PAGE, (
+    assert object_list.count() == settings.NEWS_COUNT_ON_HOME_PAGE, (
         f'На главной странице должно быть не более \
           {settings.NEWS_COUNT_ON_HOME_PAGE} новостей.'
     )
